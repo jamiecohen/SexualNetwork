@@ -53,24 +53,26 @@ class PartnershipType(Enum):
 
 class Partnership:
 
-    def __init__(self, partnershipid, womanid, manid, partnershiptype):
+    def __init__(
+            self,
+            partnershipid,
+            womanid,
+            manid,
+            duration_randomizer=lambda average: np.random.poisson(average, None)):
         self.partnership_id = partnershipid
         self.male_id = manid
         self.female_id = womanid
         self.partnership_duration = 1
-        self.partnership_type = partnershiptype
-        if self.partnership_type == PartnershipType.MARITAL:
-            self.maxdur = 12 * np.random.poisson(DUR_MARITAL, None)
-        elif self.partnership_type == PartnershipType.SHORT_TERM:
-            self.maxdur = 12 * np.random.poisson(DUR_SHORT_TERM, None)
-        elif self.partnership_type == PartnershipType.CASUAL:
-            self.maxdur = 12 * np.random.poisson(DUR_CASUAL, None)
+        self.maxdur = 12 * duration_randomizer(self.average_duration())
+
+    def average_duration(self):
+        # Kinda expected that we'd never instantiate this class directly, but instead instantiate the subclasses
+        # So this really shouldn't be hit. Probably should make it error
+        return -1
 
     def check_relationships(self):
         if Women[self.female_id].alive and Men[self.male_id].alive:
-            if self.partnership_type == PartnershipType.INSTANTANEOUS:
-                self.dissolve_relationship()
-            elif self.partnership_duration < self.maxdur:
+            if self.partnership_duration < self.maxdur:
                 self.partnership_duration += 1
             else:
                 self.dissolve_relationship()
@@ -83,12 +85,45 @@ class Partnership:
         del self
 
 
+class Marriage(Partnership):
+    def average_duration(self):
+        return DUR_MARITAL
+
+
+class CasualRelationship(Partnership):
+    def average_duration(self):
+        return DUR_CASUAL
+
+
+class ShortTermRelationship(Partnership):
+    def average_duration(self):
+        return DUR_SHORT_TERM
+
+
+class InstantaneousRelationship(Partnership):
+    def __init__(
+            self,
+            partnershipid,
+            womanid,
+            manid,
+            duration_randomizer=lambda average: np.random.poisson(average, None)):
+        super().__init__(partnershipid, womanid, manid, duration_randomizer)
+        self.maxdur = 0
+
+    def average_duration(self):
+        return 0
+
+
 class Individual:
     single = True
     numpartners = 0
     alive = True
 
-    def __init__(self, gender, age, propconc, identifier):
+    def __init__(self,
+                 gender,
+                 age,
+                 propconc,
+                 identifier):
         self.age = age
         self.month_age = age * 12
         self.gender = gender
@@ -104,100 +139,127 @@ class Individual:
             if self.month_age % 12 == 0:
                 self.age += 1
 
-    def add_partner(self, partnerid, partnershiptype):
+    def add_partner(self, partnerid, relationshiptype):
         partnership_id = uuid.uuid1()
-        Partnerships[partnership_id] = Partnership(partnership_id, self.id, partnerid, partnershiptype)
+        Partnerships[partnership_id] = relationshiptype(partnership_id, self.id, partnerid)
         self.numpartners += 1
         Men[partnerid].numpartners += 1
 
     def create_partnership(self):
         for _, m in Men.items():
-            if (AGE_OF_PARTNER.iloc[self.age]["mean"] + AGE_OF_PARTNER.iloc[self.age]["SD"]) >= m.age >= (AGE_OF_PARTNER.iloc[self.age]["mean"] - AGE_OF_PARTNER.iloc[self.age]["SD"]):
-                if m.single:
-                    relationship_type = self.assign_partnership_type(True)
-                    self.add_partner(m.id, relationship_type)
-                    m.single = False
-                    self.single = False
-                    self.numpartners += 1
-                    m.numpartners += 1
-                    break
-                else:
-                    rand = random.random()
-                    if rand < m.concurrency:
-                        relationship_type = self.assign_partnership_type(False)
+            if m.alive:
+                if (AGE_OF_PARTNER.iloc[self.age]["mean"] + AGE_OF_PARTNER.iloc[self.age]["SD"]) >= m.age >= (
+                        AGE_OF_PARTNER.iloc[self.age]["mean"] - AGE_OF_PARTNER.iloc[self.age]["SD"]):
+                    if m.single:
+                        relationship_type = self.assign_partnership_type(True)
                         self.add_partner(m.id, relationship_type)
                         m.single = False
-                        self.numpartners += 1
                         self.single = False
+                        self.numpartners += 1
                         m.numpartners += 1
                         break
+                    else:
+                        rand = random.random()
+                        if rand < m.concurrency:
+                            relationship_type = self.assign_partnership_type(False)
+                            self.add_partner(m.id, relationship_type)
+                            m.single = False
+                            self.numpartners += 1
+                            self.single = False
+                            m.numpartners += 1
+                            break
+
 
     @staticmethod
     def assign_partnership_type(single):
         if single:
             rand = random.random()
             if rand < PROB_CASUAL:
-                return PartnershipType.CASUAL
+                return CasualRelationship
             elif rand < (PROB_CASUAL + PROB_MARITAL):
-                return PartnershipType.MARITAL
+                return Marriage
             elif rand < (PROB_CASUAL + PROB_MARITAL + PROB_SHORT_TERM):
-                return PartnershipType.SHORT_TERM
+                return ShortTermRelationship
             else:
-                return PartnershipType.INSTANTANEOUS
+                return InstantaneousRelationship
         else:
             rand = random.random()
             if rand < PROB_CASUAL:
-                return PartnershipType.CASUAL
+                return CasualRelationship
             else:
-                return PartnershipType.INSTANTANEOUS
+                return InstantaneousRelationship
 
     def run_partnerships(self):
-        if self.age >= SEXUAL_DEBUT_AGE:
-            if self.single:
-                rand = random.random()
-                if rand < PARTNERSHIP_FORMATION.iloc[self.age]["Female"]:
-                    self.create_partnership()
-            else:
-                rand = random.random()
-                if rand < self.concurrency:
-                    self.create_partnership()
+        if self.alive:
+            if self.age >= SEXUAL_DEBUT_AGE:
+                if self.single:
+                    rand = random.random()
+                    if rand < PARTNERSHIP_FORMATION.iloc[self.age]["Female"]:
+                        self.create_partnership()
+                else:
+                    rand = random.random()
+                    if rand < self.concurrency:
+                        self.create_partnership()
 
 
-# Initialize men and women
+if __name__ == "__main__":
+    # Initialize men and women
+    NumMen = []
+    NumWomen = []
+    ModelAges = INITIAL_POPULATION.shape[0]
 
-NumMen = []
-NumWomen = []
-ModelAges = INITIAL_POPULATION.shape[0]
+    for k in range(ModelAges):
+        NumMen.append(int(INITIAL_POPULATION.iloc[k]["MALE"] * COHORT_SIZE))
+        NumWomen.append(int(INITIAL_POPULATION.iloc[k]["FEMALE"] * COHORT_SIZE))
 
-for k in range(ModelAges):
-    NumMen.append(int(INITIAL_POPULATION.iloc[k]["MALE"] * COHORT_SIZE))
-    NumWomen.append(int(INITIAL_POPULATION.iloc[k]["FEMALE"] * COHORT_SIZE))
+    age = 1
+    for x in NumWomen:
+        for i in range(x):
+            woman_id = uuid.uuid1()
+            Women[woman_id] = Individual(Gender.FEMALE, age, CONCURRENCY_FEMALE, woman_id)
+        age += 1
 
-age = 1
-for x in NumWomen:
-    for i in range(x):
-        woman_id = uuid.uuid1()
-        Women[woman_id] = Individual(Gender.FEMALE, age, CONCURRENCY_FEMALE, woman_id)
-    age += 1
+    age = 1
+    for x in NumMen:
+        for i in range(x):
+            man_id = uuid.uuid1()
+            Men[man_id] = Individual(Gender.MALE, age, CONCURRENCY_MALE, man_id)
+        age += 1
 
-age = 1
-for x in NumMen:
-    for i in range(x):
-        man_id = uuid.uuid1()
-        Men[man_id] = Individual(Gender.MALE, age, CONCURRENCY_MALE, man_id)
-    age += 1
+    # Starting simulation
 
-# Starting simulation
+    for months in range(SIM_MONTHS):
 
-for months in range(SIM_MONTHS):
-    for _, w in Women.items():
-        w.natural_history(BACKGROUND_MORTALITY_FEMALE)
+        for _, w in Women.items():
+            w.natural_history(BACKGROUND_MORTALITY_FEMALE)
 
-    for _, m in Men.items():
-        m.natural_history(BACKGROUND_MORTALITY_MALE)
+        for _, m in Men.items():
+            m.natural_history(BACKGROUND_MORTALITY_MALE)
 
-    for _, w in Women.items():
-        w.run_partnerships()
+        for _, w in Women.items():
+            w.run_partnerships()
 
-    for _, p in Partnerships.items():
-        p.check_relationships()
+        for _, p in Partnerships.items():
+            p.check_relationships()
+
+        DeadWomen = []
+
+        for j, w in Women.items():
+            if not w.alive:
+                DeadWomen.append(j)
+
+        for w in DeadWomen:
+            del Women[w]
+            woman_id = uuid.uuid1()
+            Women[woman_id] = Individual(Gender.FEMALE, 0, CONCURRENCY_FEMALE, woman_id)
+
+        DeadMen = []
+
+        for j, m in Men.items():
+            if not m.alive:
+                DeadMen.append(j)
+
+        for m in DeadMen:
+            del Men[m]
+            man_id = uuid.uuid1()
+            Men[man_id] = Individual(Gender.MALE, 0, CONCURRENCY_MALE, man_id)
