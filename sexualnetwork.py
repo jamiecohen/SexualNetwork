@@ -20,6 +20,9 @@ PROB_INSTANTANEOUS: float = float(run001["PROB_INSTANTANEOUS"])
 DUR_MARITAL: int = int(run001["DUR_MARITAL"])
 DUR_CASUAL: int = int(run001["DUR_CASUAL"])
 DUR_SHORT_TERM: int = int(run001["DUR_SHORT_TERM"])
+SEX_PER_MONTH_MARITAL: int = int(run001["SEX_PER_MONTH_MARITAL"])
+SEX_PER_MONTH_CASUAL: int = int(run001["SEX_PER_MONTH_CASUAL"])
+SEX_PER_MONTH_SHORT_TERM: int = int(run001["SEX_PER_MONTH_SHORT_TERM"])
 SEXUAL_DEBUT_AGE: int = int(run001["SEXUAL_DEBUT_AGE"])
 BACKGROUND_MORTALITY_FEMALE = pd.read_csv(run001["BACKGROUND_MORTALITY_FEMALE_FILE"])
 BACKGROUND_MORTALITY_MALE = pd.read_csv(run001["BACKGROUND_MORTALITY_MALE_FILE"])
@@ -34,9 +37,6 @@ SIM_MONTHS = SIM_YEARS * CYCLE_LENGTH
 Women = dict()
 Men = dict()
 Partnerships = dict()
-
-
-# Defining classes and variables
 
 
 class Gender(Enum):
@@ -58,16 +58,20 @@ class Partnership:
             partnershipid,
             womanid,
             manid,
-            duration_randomizer=lambda average: np.random.poisson(average, None)):
+            poisson_randomizer=lambda average: np.random.poisson(average, None)):
         self.partnership_id = partnershipid
         self.male_id = manid
         self.female_id = womanid
         self.partnership_duration = 1
-        self.maxdur = 12 * duration_randomizer(self.average_duration())
+        self.maxdur = 12 * poisson_randomizer(self.average_duration())
+        self.sexacts = poisson_randomizer(self.sex_acts())
 
     def average_duration(self):
         # Kinda expected that we'd never instantiate this class directly, but instead instantiate the subclasses
         # So this really shouldn't be hit. Probably should make it error
+        return -1
+
+    def sex_acts(self):
         return -1
 
     def check_relationships(self):
@@ -89,15 +93,24 @@ class Marriage(Partnership):
     def average_duration(self):
         return DUR_MARITAL
 
+    def sex_acts(self):
+        return SEX_PER_MONTH_MARITAL
+
 
 class CasualRelationship(Partnership):
     def average_duration(self):
         return DUR_CASUAL
 
+    def sex_acts(self):
+        return SEX_PER_MONTH_CASUAL
+
 
 class ShortTermRelationship(Partnership):
     def average_duration(self):
         return DUR_SHORT_TERM
+
+    def sex_acts(self):
+        return SEX_PER_MONTH_SHORT_TERM
 
 
 class InstantaneousRelationship(Partnership):
@@ -109,9 +122,14 @@ class InstantaneousRelationship(Partnership):
             duration_randomizer=lambda average: np.random.poisson(average, None)):
         super().__init__(partnershipid, womanid, manid, duration_randomizer)
         self.maxdur = 0
+        self.sexacts = 1
 
     def average_duration(self):
         return 0
+
+
+class Tracer:
+    Concurrency = []
 
 
 class Individual:
@@ -148,27 +166,31 @@ class Individual:
     def create_partnership(self):
         for _, m in Men.items():
             if m.alive:
-                if (AGE_OF_PARTNER.iloc[self.age]["mean"] + AGE_OF_PARTNER.iloc[self.age]["SD"]) >= m.age >= (
-                        AGE_OF_PARTNER.iloc[self.age]["mean"] - AGE_OF_PARTNER.iloc[self.age]["SD"]):
-                    if m.single:
-                        relationship_type = self.assign_partnership_type(True)
-                        self.add_partner(m.id, relationship_type)
-                        m.single = False
-                        self.single = False
-                        self.numpartners += 1
-                        m.numpartners += 1
-                        break
-                    else:
-                        rand = random.random()
-                        if rand < m.concurrency:
-                            relationship_type = self.assign_partnership_type(False)
+                alreadypartner = False
+                for key, val in Partnerships.items():
+                    if val.female_id == self.id and val.male_id == m.id:
+                        alreadypartner = True
+                if not alreadypartner:
+                    if (AGE_OF_PARTNER.iloc[self.age]["mean"] + AGE_OF_PARTNER.iloc[self.age]["SD"]) >= m.age >= (
+                            AGE_OF_PARTNER.iloc[self.age]["mean"] - AGE_OF_PARTNER.iloc[self.age]["SD"]):
+                        if m.single:
+                            relationship_type = self.assign_partnership_type(True)
                             self.add_partner(m.id, relationship_type)
                             m.single = False
-                            self.numpartners += 1
                             self.single = False
+                            self.numpartners += 1
                             m.numpartners += 1
                             break
-
+                        else:
+                            rand = random.random()
+                            if rand < m.concurrency:
+                                relationship_type = self.assign_partnership_type(False)
+                                self.add_partner(m.id, relationship_type)
+                                m.single = False
+                                self.numpartners += 1
+                                self.single = False
+                                m.numpartners += 1
+                                break
 
     @staticmethod
     def assign_partnership_type(single):
@@ -226,7 +248,7 @@ if __name__ == "__main__":
             Men[man_id] = Individual(Gender.MALE, age, CONCURRENCY_MALE, man_id)
         age += 1
 
-    # Starting simulation
+    # Run simulation
 
     for months in range(SIM_MONTHS):
 
@@ -241,6 +263,8 @@ if __name__ == "__main__":
 
         for _, p in Partnerships.items():
             p.check_relationships()
+
+        # Check who died in cycle, remove from dictionary, replace with new birth
 
         DeadWomen = []
 
