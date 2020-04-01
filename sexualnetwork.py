@@ -24,6 +24,7 @@ SEX_PER_MONTH_MARITAL: int = int(run001["SEX_PER_MONTH_MARITAL"])
 SEX_PER_MONTH_CASUAL: int = int(run001["SEX_PER_MONTH_CASUAL"])
 SEX_PER_MONTH_SHORT_TERM: int = int(run001["SEX_PER_MONTH_SHORT_TERM"])
 SEXUAL_DEBUT_AGE: int = int(run001["SEXUAL_DEBUT_AGE"])
+TRANSMISSION_PER_SEX_ACT: float = float(run001["TRANSMISSION_PER_SEX_ACT"])
 BACKGROUND_MORTALITY_FEMALE = pd.read_csv(run001["BACKGROUND_MORTALITY_FEMALE_FILE"])
 BACKGROUND_MORTALITY_MALE = pd.read_csv(run001["BACKGROUND_MORTALITY_MALE_FILE"])
 AGE_OF_PARTNER = pd.read_csv(run001["AGE_OF_PARTNER_FILE"])
@@ -44,6 +45,25 @@ class Gender(Enum):
     FEMALE = 2
 
 
+class HPVType(Enum):
+    HPV16 = 1
+    HPV18 = 2
+    HPV31 = 3
+    HPV33 = 4
+    HPV45 = 5
+    HPV52 = 6
+    HPV58 = 7
+    HPVoHR = 8
+    HPVLR = 9
+
+
+class HPVInfection:
+
+    def __init__(self, type):
+        self.HPVTimer = 1
+        self.HPVType = type
+
+
 class PartnershipType(Enum):
     MARITAL = 1
     SHORT_TERM = 2
@@ -59,12 +79,17 @@ class Partnership:
             womanid,
             manid,
             poisson_randomizer=lambda average: np.random.poisson(average, None)):
+        self.infections = dict()
         self.partnership_id = partnershipid
         self.male_id = manid
         self.female_id = womanid
         self.partnership_duration = 1
         self.maxdur = 12 * poisson_randomizer(self.average_duration())
         self.sexacts = poisson_randomizer(self.sex_acts())
+        for m in Men[manid].HPVinfections:
+            self.infections[manid] = Men[manid].HPVinfections[m]
+        for w in Women[womanid].HPVinfections:
+            self.infections[womanid] = Women[womanid].HPVinfections[w]
 
     def average_duration(self):
         # Kinda expected that we'd never instantiate this class directly, but instead instantiate the subclasses
@@ -73,6 +98,13 @@ class Partnership:
 
     def sex_acts(self):
         return -1
+
+    def check_serodiscordance(self):
+        # Want to return the id, HPVinfections that are not duplicate in dictionary of infections
+        pass
+
+    def disease_transmission(self):
+        pass
 
     def check_relationships(self):
         if Women[self.female_id].alive and Men[self.male_id].alive:
@@ -161,6 +193,7 @@ class Individual:
     single = True
     numpartners = 0
     alive = True
+    HPVinfections = dict()
 
     def __init__(self,
                  gender,
@@ -172,6 +205,10 @@ class Individual:
         self.gender = gender
         self.concurrency = propconc
         self.id = identifier
+
+    def acquire_HPV(self, type):
+        infection_id = uuid.uuid1()
+        self.HPVinfections[infection_id] = HPVInfection(type)
 
     def natural_history(self, mortality):
         rand = random.random()
