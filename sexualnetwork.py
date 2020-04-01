@@ -90,6 +90,14 @@ class Partnership:
 
 
 class Marriage(Partnership):
+    def __init__(
+            self,
+            partnershipid,
+            womanid,
+            manid,
+            duration_randomizer=lambda average: np.random.poisson(average, None)):
+        super().__init__(partnershipid, womanid, manid, duration_randomizer)
+
     def average_duration(self):
         return DUR_MARITAL
 
@@ -98,6 +106,14 @@ class Marriage(Partnership):
 
 
 class CasualRelationship(Partnership):
+    def __init__(
+            self,
+            partnershipid,
+            womanid,
+            manid,
+            duration_randomizer=lambda average: np.random.poisson(average, None)):
+        super().__init__(partnershipid, womanid, manid, duration_randomizer)
+
     def average_duration(self):
         return DUR_CASUAL
 
@@ -106,6 +122,14 @@ class CasualRelationship(Partnership):
 
 
 class ShortTermRelationship(Partnership):
+    def __init__(
+            self,
+            partnershipid,
+            womanid,
+            manid,
+            duration_randomizer=lambda average: np.random.poisson(average, None)):
+        super().__init__(partnershipid, womanid, manid, duration_randomizer)
+
     def average_duration(self):
         return DUR_SHORT_TERM
 
@@ -121,11 +145,12 @@ class InstantaneousRelationship(Partnership):
             manid,
             duration_randomizer=lambda average: np.random.poisson(average, None)):
         super().__init__(partnershipid, womanid, manid, duration_randomizer)
-        self.maxdur = 0
-        self.sexacts = 1
 
     def average_duration(self):
         return 0
+
+    def sex_acts(self):
+        return 1
 
 
 class Tracer:
