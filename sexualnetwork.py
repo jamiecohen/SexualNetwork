@@ -5,39 +5,20 @@ import configparser
 import numpy as np
 import pandas as pd
 
-config = configparser.ConfigParser()
-config.read('example.ini')
-run001 = config['run001']
-COHORT_SIZE: int = int(run001["COHORT_SIZE"])
-SIM_YEARS: int = int(run001["SIM_YEARS"])
-CYCLE_LENGTH: int = int(run001["CYCLE_LENGTH"])
-CONCURRENCY_MALE: float = float(run001["CONCURRENCY_MALE"])
-CONCURRENCY_FEMALE: float = float(run001["CONCURRENCY_FEMALE"])
-PROB_MARITAL: float = float(run001["PROB_MARITAL"])
-PROB_CASUAL: float = float(run001["PROB_CASUAL"])
-PROB_SHORT_TERM: float = float(run001["PROB_SHORT_TERM"])
-PROB_INSTANTANEOUS: float = float(run001["PROB_INSTANTANEOUS"])
-DUR_MARITAL: int = int(run001["DUR_MARITAL"])
-DUR_CASUAL: int = int(run001["DUR_CASUAL"])
-DUR_SHORT_TERM: int = int(run001["DUR_SHORT_TERM"])
-SEX_PER_MONTH_MARITAL: int = int(run001["SEX_PER_MONTH_MARITAL"])
-SEX_PER_MONTH_CASUAL: int = int(run001["SEX_PER_MONTH_CASUAL"])
-SEX_PER_MONTH_SHORT_TERM: int = int(run001["SEX_PER_MONTH_SHORT_TERM"])
-SEXUAL_DEBUT_AGE: int = int(run001["SEXUAL_DEBUT_AGE"])
-TRANSMISSION_PER_SEX_ACT: float = float(run001["TRANSMISSION_PER_SEX_ACT"])
-BACKGROUND_MORTALITY_FEMALE = pd.read_csv(run001["BACKGROUND_MORTALITY_FEMALE_FILE"])
-BACKGROUND_MORTALITY_MALE = pd.read_csv(run001["BACKGROUND_MORTALITY_MALE_FILE"])
-AGE_OF_PARTNER = pd.read_csv(run001["AGE_OF_PARTNER_FILE"])
-PARTNERSHIP_FORMATION = pd.read_csv(run001["PARTNERSHIP_FORMATION_FILE"])
-INITIAL_POPULATION = pd.read_csv(run001["INITIAL_POPULATION_FILE"])
-
-SIM_MONTHS = SIM_YEARS * CYCLE_LENGTH
-
 # Create empty dictionary of men, women and list of partnerships
 
 Women = dict()
 Men = dict()
 Partnerships = dict()
+
+
+def getKeysByValue(dictOfElements, valueToFind):
+    listOfKeys = list()
+    listOfItems = dictOfElements.items()
+    for item in listOfItems:
+        if item[1] == valueToFind:
+            listOfKeys.append(item[0])
+    return listOfKeys
 
 
 class Gender(Enum):
@@ -46,22 +27,98 @@ class Gender(Enum):
 
 
 class HPVType(Enum):
-    HPV16 = 1
-    HPV18 = 2
-    HPV31 = 3
-    HPV33 = 4
-    HPV45 = 5
-    HPV52 = 6
-    HPV58 = 7
-    HPVoHR = 8
-    HPVLR = 9
+    HPV16 = 0
+    HPV18 = 1
+    HPVoHR = 2
+    HPVLR = 3
 
 
-class HPVInfection:
+class Data:
+    def __init__(self, filename):
+        config = configparser.ConfigParser()
+        config.read(filename)
+        run001 = config['run001']
+        self.COHORT_SIZE: int = int(run001["COHORT_SIZE"])
+        self.SIM_YEARS: int = int(run001["SIM_YEARS"])
+        self.SIM_MONTHS = self.SIM_YEARS * 12
+        self.CYCLE_LENGTH: int = int(run001["CYCLE_LENGTH"])
+        self.CONCURRENCY_MALE: float = float(run001["CONCURRENCY_MALE"])
+        self.CONCURRENCY_FEMALE: float = float(run001["CONCURRENCY_FEMALE"])
+        self.PROB_MARITAL: float = float(run001["PROB_MARITAL"])
+        self.PROB_CASUAL: float = float(run001["PROB_CASUAL"])
+        self.PROB_SHORT_TERM: float = float(run001["PROB_SHORT_TERM"])
+        self.PROB_INSTANTANEOUS: float = float(run001["PROB_INSTANTANEOUS"])
+        self.DUR_MARITAL: int = int(run001["DUR_MARITAL"])
+        self.DUR_CASUAL: int = int(run001["DUR_CASUAL"])
+        self.DUR_SHORT_TERM: int = int(run001["DUR_SHORT_TERM"])
+        self.SEX_PER_MONTH_MARITAL: int = int(run001["SEX_PER_MONTH_MARITAL"])
+        self.SEX_PER_MONTH_CASUAL: int = int(run001["SEX_PER_MONTH_CASUAL"])
+        self.SEX_PER_MONTH_SHORT_TERM: int = int(run001["SEX_PER_MONTH_SHORT_TERM"])
+        self.SEXUAL_DEBUT_AGE: int = int(run001["SEXUAL_DEBUT_AGE"])
+        self.TRANSMISSION_PER_SEX_ACT: float = float(run001["TRANSMISSION_PER_SEX_ACT"])
+        self.BACKGROUND_MORTALITY_FEMALE = pd.read_csv(run001["BACKGROUND_MORTALITY_FEMALE_FILE"])
+        self.BACKGROUND_MORTALITY_MALE = pd.read_csv(run001["BACKGROUND_MORTALITY_MALE_FILE"])
+        self.AGE_OF_PARTNER = pd.read_csv(run001["AGE_OF_PARTNER_FILE"])
+        self.PARTNERSHIP_FORMATION = pd.read_csv(run001["PARTNERSHIP_FORMATION_FILE"])
+        self.INITIAL_POPULATION = pd.read_csv(run001["INITIAL_POPULATION_FILE"])
+        self.HPV_CLEARANCE = pd.read_csv(run001["HPV_CLEARANCE_FILE"])
 
-    def __init__(self, type):
-        self.HPVTimer = 1
-        self.HPVType = type
+
+class Infection:
+
+    def __init__(self):
+        self.Timer = 1
+
+    def get_clearance(self):
+        return -1
+
+
+class HPV16Infection(Infection):
+
+    def __init__(self, data):
+        super(HPV16Infection, self).__init__()
+        self.HPVType = HPVType.HPV16
+        self.HPVClearance = data.HPV_CLEARANCE["HPV16"]
+        self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
+
+    def get_clearance(self):
+        return self.HPVClearance.iloc[self.Timer]
+
+
+class HPV18Infection(Infection):
+
+    def __init__(self, data):
+        super(HPV18Infection, self).__init__()
+        self.HPVType = HPVType.HPV18
+        self.HPVClearance = data.HPV_CLEARANCE["HPV18"]
+        self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
+
+    def get_clearance(self):
+        return self.HPVClearance.iloc[self.Timer]
+
+
+class HPVoHRInfection(Infection):
+
+    def __init__(self, data):
+        super(HPVoHRInfection, self).__init__()
+        self.HPVType = HPVType.HPV16
+        self.HPVClearance = data.HPV_CLEARANCE["HPVoHR"]
+        self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
+
+    def get_clearance(self):
+        return self.HPVClearance.iloc[self.Timer]
+
+
+class HPVLRInfection(Infection):
+
+    def __init__(self, data):
+        super(HPVLRInfection, self).__init__()
+        self.HPVType = HPVType.HPV16
+        self.HPVClearance = data.HPV_CLEARANCE["HPVLR"]
+        self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
+
+    def get_clearance(self):
+        return self.HPVClearance.iloc[self.Timer]
 
 
 class PartnershipType(Enum):
@@ -78,18 +135,17 @@ class Partnership:
             partnershipid,
             womanid,
             manid,
+            data,
             poisson_randomizer=lambda average: np.random.poisson(average, None)):
-        self.infections = dict()
+        self.data = data
+        self.unique_m_infections = []
+        self.unique_f_infections = []
         self.partnership_id = partnershipid
         self.male_id = manid
         self.female_id = womanid
         self.partnership_duration = 1
         self.maxdur = 12 * poisson_randomizer(self.average_duration())
         self.sexacts = poisson_randomizer(self.sex_acts())
-        for m in Men[manid].HPVinfections:
-            self.infections[manid] = Men[manid].HPVinfections[m]
-        for w in Women[womanid].HPVinfections:
-            self.infections[womanid] = Women[womanid].HPVinfections[w]
 
     def average_duration(self):
         # Kinda expected that we'd never instantiate this class directly, but instead instantiate the subclasses
@@ -100,14 +156,44 @@ class Partnership:
         return -1
 
     def check_serodiscordance(self):
-        # Want to return the id, HPVinfections that are not duplicate in dictionary of infections
-        pass
+        m_infections = set()
+        f_infections = set()
+        for id, inf in Men[self.male_id].Infections.items():
+            m_infections.add(inf.HPVType)
+        for id, inf in Women[self.female_id].Infections.items():
+            f_infections.add(inf.HPVType)
+        self.unique_m_infections = m_infections.difference(f_infections)
+        for i in self.unique_m_infections:
+            self.disease_transmission(Gender.MALE, i)
+        self.unique_f_infections = f_infections.difference(m_infections)
+        for i in self.unique_f_infections:
+            self.disease_transmission(Gender.FEMALE, i)
 
-    def disease_transmission(self):
-        pass
+    def disease_transmission(self, gender, hpvtype):
+        if hpvtype == HPVType.HPV16:
+            type = HPV16Infection
+        elif hpvtype == HPVType.HPV18:
+            type = HPV18Infection
+        elif hpvtype == HPVType.HPVoHR:
+            type = HPVoHRInfection
+        else:
+            type = HPVLRInfection
+
+        for sex in range(self.sexacts):
+            if gender.MALE:
+                rand = random.random()
+                if rand < self.data.TRANSMISSION_PER_SEX_ACT:
+                    Women[self.female_id].acquire_HPV(type)
+                    break
+            else:
+                rand = random.random()
+                if rand < self.data.TRANSMISSION_PER_SEX_ACT:
+                    Men[self.male_id].acquire_HPV(type)
+                    break
 
     def check_relationships(self):
         if Women[self.female_id].alive and Men[self.male_id].alive:
+            self.check_serodiscordance()
             if self.partnership_duration < self.maxdur:
                 self.partnership_duration += 1
             else:
@@ -131,10 +217,10 @@ class Marriage(Partnership):
         super().__init__(partnershipid, womanid, manid, duration_randomizer)
 
     def average_duration(self):
-        return DUR_MARITAL
+        return self.data.DUR_MARITAL
 
     def sex_acts(self):
-        return SEX_PER_MONTH_MARITAL
+        return self.data.SEX_PER_MONTH_MARITAL
 
 
 class CasualRelationship(Partnership):
@@ -147,10 +233,10 @@ class CasualRelationship(Partnership):
         super().__init__(partnershipid, womanid, manid, duration_randomizer)
 
     def average_duration(self):
-        return DUR_CASUAL
+        return self.data.DUR_CASUAL
 
     def sex_acts(self):
-        return SEX_PER_MONTH_CASUAL
+        return self.data.SEX_PER_MONTH_CASUAL
 
 
 class ShortTermRelationship(Partnership):
@@ -163,10 +249,10 @@ class ShortTermRelationship(Partnership):
         super().__init__(partnershipid, womanid, manid, duration_randomizer)
 
     def average_duration(self):
-        return DUR_SHORT_TERM
+        return self.data.DUR_SHORT_TERM
 
     def sex_acts(self):
-        return SEX_PER_MONTH_SHORT_TERM
+        return self.data.SEX_PER_MONTH_SHORT_TERM
 
 
 class InstantaneousRelationship(Partnership):
@@ -193,35 +279,57 @@ class Individual:
     single = True
     numpartners = 0
     alive = True
-    HPVinfections = dict()
+    Infections = dict()
 
     def __init__(self,
                  gender,
                  age,
-                 propconc,
-                 identifier):
+                 identifier,
+                 data):
         self.age = age
         self.month_age = age * 12
         self.gender = gender
-        self.concurrency = propconc
         self.id = identifier
+        self.data = data
+        if self.gender == Gender.MALE:
+            self.mortality = data.BACKGROUND_MORTALITY_MALE
+            self.concurrency = data.CONCURRENCY_MALE
+        else:
+            self.mortality = data.BACKGROUND_MORTALITY_FEMALE
+            self.concurrency = data.CONCURRENCY_FEMALE
+        self.ageofpartner = data.AGE_OF_PARTNER
+        self.sexualdebutage = data.SEXUAL_DEBUT_AGE
+        self.partnershipformation = data.PARTNERSHIP_FORMATION
 
-    def acquire_HPV(self, type):
+    def acquire_HPV(self, hpvtype):
         infection_id = uuid.uuid1()
-        self.HPVinfections[infection_id] = HPVInfection(type)
+        self.Infections[infection_id] = hpvtype(self.data)
 
-    def natural_history(self, mortality):
+    def clear_hpv(self, infection_id):
+        del self.Infections[infection_id]
+
+    def hpv_natural_history(self):
+        for infid, inf in self.Infections.items():
+            prob_clear = inf.get_clearance()
+            rand = random.random()
+            if rand < prob_clear:
+                self.clear_hpv(infid)
+            else:
+                inf.Timer += 1
+
+    def natural_history(self):
         rand = random.random()
-        if rand < mortality.iloc[self.age]["mASR"]:
+        if rand < self.mortality.iloc[self.age]["mASR"]:
             self.alive = False
         else:
+            self.hpv_natural_history()
             self.month_age += 1
             if self.month_age % 12 == 0:
                 self.age += 1
 
     def add_partner(self, partnerid, relationshiptype):
         partnership_id = uuid.uuid1()
-        Partnerships[partnership_id] = relationshiptype(partnership_id, self.id, partnerid)
+        Partnerships[partnership_id] = relationshiptype(partnership_id, self.id, partnerid, self.data)
         self.numpartners += 1
         Men[partnerid].numpartners += 1
 
@@ -233,8 +341,8 @@ class Individual:
                     if val.female_id == self.id and val.male_id == m.id:
                         alreadypartner = True
                 if not alreadypartner:
-                    if (AGE_OF_PARTNER.iloc[self.age]["mean"] + AGE_OF_PARTNER.iloc[self.age]["SD"]) >= m.age >= (
-                            AGE_OF_PARTNER.iloc[self.age]["mean"] - AGE_OF_PARTNER.iloc[self.age]["SD"]):
+                    if (self.ageofpartner.iloc[self.age]["mean"] + self.ageofpartner.iloc[self.age]["SD"]) >= m.age >= (
+                            self.ageofpartner.iloc[self.age]["mean"] - self.ageofpartner.iloc[self.age]["SD"]):
                         if m.single:
                             relationship_type = self.assign_partnership_type(True)
                             self.add_partner(m.id, relationship_type)
@@ -254,31 +362,30 @@ class Individual:
                                 m.numpartners += 1
                                 break
 
-    @staticmethod
-    def assign_partnership_type(single):
+    def assign_partnership_type(self, single):
         if single:
             rand = random.random()
-            if rand < PROB_CASUAL:
+            if rand < self.data.PROB_CASUAL:
                 return CasualRelationship
-            elif rand < (PROB_CASUAL + PROB_MARITAL):
+            elif rand < (self.data.PROB_CASUAL + self.data.PROB_MARITAL):
                 return Marriage
-            elif rand < (PROB_CASUAL + PROB_MARITAL + PROB_SHORT_TERM):
+            elif rand < (self.data.PROB_CASUAL + self.data.PROB_MARITAL + self.data.PROB_SHORT_TERM):
                 return ShortTermRelationship
             else:
                 return InstantaneousRelationship
         else:
             rand = random.random()
-            if rand < PROB_CASUAL:
+            if rand < self.data.PROB_CASUAL:
                 return CasualRelationship
             else:
                 return InstantaneousRelationship
 
     def run_partnerships(self):
         if self.alive:
-            if self.age >= SEXUAL_DEBUT_AGE:
+            if self.age >= self.sexualdebutage:
                 if self.single:
                     rand = random.random()
-                    if rand < PARTNERSHIP_FORMATION.iloc[self.age]["Female"]:
+                    if rand < self.partnershipformation.iloc[self.age]["Female"]:
                         self.create_partnership()
                 else:
                     rand = random.random()
@@ -287,38 +394,40 @@ class Individual:
 
 
 if __name__ == "__main__":
+    Model_Data = Data("example.ini")
+
     # Initialize men and women
     NumMen = []
     NumWomen = []
-    ModelAges = INITIAL_POPULATION.shape[0]
+    ModelAges = Model_Data.INITIAL_POPULATION.shape[0]
 
     for k in range(ModelAges):
-        NumMen.append(int(INITIAL_POPULATION.iloc[k]["MALE"] * COHORT_SIZE))
-        NumWomen.append(int(INITIAL_POPULATION.iloc[k]["FEMALE"] * COHORT_SIZE))
+        NumMen.append(int(Model_Data.INITIAL_POPULATION.iloc[k]["MALE"] * Model_Data.COHORT_SIZE))
+        NumWomen.append(int(Model_Data.INITIAL_POPULATION.iloc[k]["FEMALE"] * Model_Data.COHORT_SIZE))
 
     age = 1
     for x in NumWomen:
         for i in range(x):
             woman_id = uuid.uuid1()
-            Women[woman_id] = Individual(Gender.FEMALE, age, CONCURRENCY_FEMALE, woman_id)
+            Women[woman_id] = Individual(Gender.FEMALE, age, woman_id, Model_Data)
         age += 1
 
     age = 1
     for x in NumMen:
         for i in range(x):
             man_id = uuid.uuid1()
-            Men[man_id] = Individual(Gender.MALE, age, CONCURRENCY_MALE, man_id)
+            Men[man_id] = Individual(Gender.MALE, age, man_id, Model_Data)
         age += 1
 
     # Run simulation
 
-    for months in range(SIM_MONTHS):
+    for months in range(Model_Data.SIM_MONTHS):
 
         for _, w in Women.items():
-            w.natural_history(BACKGROUND_MORTALITY_FEMALE)
+            w.natural_history()
 
         for _, m in Men.items():
-            m.natural_history(BACKGROUND_MORTALITY_MALE)
+            m.natural_history()
 
         for _, w in Women.items():
             w.run_partnerships()
@@ -337,7 +446,7 @@ if __name__ == "__main__":
         for w in DeadWomen:
             del Women[w]
             woman_id = uuid.uuid1()
-            Women[woman_id] = Individual(Gender.FEMALE, 0, CONCURRENCY_FEMALE, woman_id)
+            Women[woman_id] = Individual(Gender.FEMALE, 0, woman_id, Model_Data)
 
         DeadMen = []
 
@@ -348,4 +457,4 @@ if __name__ == "__main__":
         for m in DeadMen:
             del Men[m]
             man_id = uuid.uuid1()
-            Men[man_id] = Individual(Gender.MALE, 0, CONCURRENCY_MALE, man_id)
+            Men[man_id] = Individual(Gender.MALE, 0, man_id, Model_Data)
