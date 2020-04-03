@@ -61,7 +61,7 @@ class Infection:
 
     def check_serodiscordance(self, person):
         discordant = True
-        for id, inf in person.Infections.items():
+        for _, inf in person.Infections.items():
             if inf.Type == self.Type:
                 discordant = False
                 break
@@ -85,7 +85,7 @@ class HPV16Infection(Infection):
         return self.HPVClearance.iloc[self.Timer]
 
     def transmit_infection(self, person):
-        for sex in range(person.sexacts):
+        for _ in range(person.sexacts):
             rand = random.random()
             if rand < self.HPVTransmission:
                 person.acquire_infection(HPV16Infection)
@@ -184,9 +184,9 @@ class Partnership:
         return -1
 
     def check_serodiscordance(self):
-        for id, inf in self.male.Infections.items():
+        for _, inf in self.male.Infections.items():
             inf.check_serodiscordance(self.female)
-        for id, inf in self.female.Infections.items():
+        for _, inf in self.female.Infections.items():
             inf.check_serodiscordance(self.male)
 
     def check_relationships(self):
@@ -335,7 +335,7 @@ class Individual:
         for _, m in self.list_of_men.items():
             if m.alive:
                 alreadypartner = False
-                for key, val in self.list_of_partnerships.items():
+                for _, val in self.list_of_partnerships.items():
                     if val.female_id == self.id and val.male_id == m.id:
                         alreadypartner = True
                 if not alreadypartner:
