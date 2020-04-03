@@ -129,7 +129,7 @@ class HPVoHRInfection(Infection):
             if rand < self.HPVTransmission:
                 person.acquire_infection(HPVoHRInfection)
                 break
-                
+
 
 class HPVLRInfection(Infection):
 
@@ -141,7 +141,7 @@ class HPVLRInfection(Infection):
 
     def get_clearance(self):
         return self.HPVClearance.iloc[self.Timer]
-        
+
     def transmit_infection(self, person):
         for _ in range(person.sexacts):
             rand = random.random()
