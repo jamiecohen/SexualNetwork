@@ -1,0 +1,3 @@
+language: python
+script:
+  - pylint ./sexualnetwork.py

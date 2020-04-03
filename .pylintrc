@@ -1,0 +1,13 @@
+[MASTER]
+
+disable=
+  missing-module-docstring,
+  missing-function-docstring,
+  missing-class-docstring,
+  invalid-name,
+  no-self-use,
+  no-else-break,
+  line-too-long,
+  too-many-instance-attributes,
+  redefined-outer-name,
+  no-else-return
