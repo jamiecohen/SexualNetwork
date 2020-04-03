@@ -1,6 +1,3 @@
 language: python
 script:
   - pylint ./sexualnetwork.py
-  - pytest --cov=sexualnetwork
-after_success:
-  - coveralls
