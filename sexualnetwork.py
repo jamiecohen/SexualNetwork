@@ -4,21 +4,13 @@ import random
 import configparser
 import numpy as np
 import pandas as pd
+import sys
 
 # Create empty dictionary of men, women and list of partnerships
 
 Women = dict()
 Men = dict()
 Partnerships = dict()
-
-
-def getKeysByValue(dictOfElements, valueToFind):
-    listOfKeys = list()
-    listOfItems = dictOfElements.items()
-    for item in listOfItems:
-        if item[1] == valueToFind:
-            listOfKeys.append(item[0])
-    return listOfKeys
 
 
 class Gender(Enum):
@@ -393,8 +385,13 @@ class Individual:
                         self.create_partnership()
 
 
-if __name__ == "__main__":
-    Model_Data = Data("example.ini")
+def main():
+    if len(sys.argv) > 1:
+        filename = sys.argv[1]
+    else:
+        filename = "example.ini"
+
+    Model_Data = Data(filename)
 
     # Initialize men and women
     NumMen = []
@@ -458,3 +455,7 @@ if __name__ == "__main__":
             del Men[m]
             man_id = uuid.uuid1()
             Men[man_id] = Individual(Gender.MALE, 0, man_id, Model_Data)
+
+
+if __name__ == "__main__":
+    main()
