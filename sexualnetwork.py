@@ -270,10 +270,6 @@ class InstantaneousRelationship(Partnership):
 
 
 class Individual:
-    single = True
-    numpartners = 0
-    alive = True
-    Infections = dict()
 
     def __init__(self,
                  gender,
@@ -282,6 +278,10 @@ class Individual:
                  data,
                  men,
                  partnerships):
+        self.single = True
+        self.numpartners = 0
+        self.alive = True
+        self.Infections = dict()
         self.age = age
         self.month_age = age * 12
         self.gender = gender
@@ -303,15 +303,15 @@ class Individual:
         infection_id = uuid.uuid1()
         self.Infections[infection_id] = hpvtype(self.data)
 
-    def clear_hpv(self, infection_id):
+    def clear_infection(self, infection_id):
         del self.Infections[infection_id]
 
-    def hpv_natural_history(self):
+    def infection_natural_history(self):
         for infid, inf in self.Infections.items():
             prob_clear = inf.get_clearance()
             rand = random.random()
             if rand < prob_clear:
-                self.clear_hpv(infid)
+                self.clear_infection(infid)
             else:
                 inf.Timer += 1
 
@@ -320,7 +320,7 @@ class Individual:
         if rand < self.mortality.iloc[self.age]["mASR"]:
             self.alive = False
         else:
-            self.hpv_natural_history()
+            self.infection_natural_history()
             self.month_age += 1
             if self.month_age % 12 == 0:
                 self.age += 1
