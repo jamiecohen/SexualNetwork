@@ -385,7 +385,7 @@ class Individual:
                         self.create_partnership()
 
 
-def main():
+if __name__ == "__main__":
     if len(sys.argv) > 1:
         filename = sys.argv[1]
     else:
@@ -407,6 +407,11 @@ def main():
         for i in range(x):
             woman_id = uuid.uuid1()
             Women[woman_id] = Individual(Gender.FEMALE, age, woman_id, Model_Data)
+            # Seed HPV
+            if 17 < age < 30:
+                rand = random.random()
+                if rand < 0.3:
+                    Women[woman_id].acquire_HPV(HPV16Infection)
         age += 1
 
     age = 1
@@ -414,6 +419,11 @@ def main():
         for i in range(x):
             man_id = uuid.uuid1()
             Men[man_id] = Individual(Gender.MALE, age, man_id, Model_Data)
+            # Seed HPV
+            if 17 < age < 30:
+                rand = random.random()
+                if rand < 0.3:
+                    Men[man_id].acquire_HPV(HPV16Infection)
         age += 1
 
     # Run simulation
@@ -455,7 +465,3 @@ def main():
             del Men[m]
             man_id = uuid.uuid1()
             Men[man_id] = Individual(Gender.MALE, 0, man_id, Model_Data)
-
-
-if __name__ == "__main__":
-    main()
