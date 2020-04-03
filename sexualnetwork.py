@@ -20,6 +20,7 @@ class HPVType(Enum):
 
 
 class Data:
+
     def __init__(self, filename):
         config = configparser.ConfigParser()
         config.read(filename)
@@ -104,7 +105,7 @@ class HPV18Infection(Infection):
         return self.HPVClearance.iloc[self.Timer]
 
     def transmit_infection(self, person):
-        for sex in range(person.sexacts):
+        for _ in range(person.sexacts):
             rand = random.random()
             if rand < self.HPVTransmission:
                 person.acquire_infection(HPV18Infection)
@@ -123,7 +124,7 @@ class HPVoHRInfection(Infection):
         return self.HPVClearance.iloc[self.Timer]
 
     def transmit_infection(self, person):
-        for sex in range(person.sexacts):
+        for _ in range(person.sexacts):
             rand = random.random()
             if rand < self.HPVTransmission:
                 person.acquire_infection(HPVoHRInfection)
@@ -142,7 +143,7 @@ class HPVLRInfection(Infection):
         return self.HPVClearance.iloc[self.Timer]
         
     def transmit_infection(self, person):
-        for sex in range(person.sexacts):
+        for _ in range(person.sexacts):
             rand = random.random()
             if rand < self.HPVTransmission:
                 person.acquire_infection(HPVLRInfection)
@@ -415,7 +416,7 @@ def main():
 
     age = 1
     for x in NumWomen:
-        for i in range(x):
+        for _ in range(x):
             woman_id = uuid.uuid1()
             Women[woman_id] = Individual(Gender.FEMALE, age, woman_id, Model_Data, Men, Partnerships)
             # Seed HPV
@@ -427,7 +428,7 @@ def main():
 
     age = 1
     for x in NumMen:
-        for i in range(x):
+        for _ in range(x):
             man_id = uuid.uuid1()
             Men[man_id] = Individual(Gender.MALE, age, man_id, Model_Data, Men, Partnerships)
             # Seed HPV
@@ -439,7 +440,7 @@ def main():
 
     # Run simulation
 
-    for months in range(Model_Data.SIM_MONTHS):
+    for _ in range(Model_Data.SIM_MONTHS):
 
         for _, w in Women.items():
             w.natural_history()
