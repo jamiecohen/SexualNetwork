@@ -1,7 +1,6 @@
 import uuid
 from enum import Enum
 import random
-import sys
 import configparser
 import numpy as np
 import pandas as pd
@@ -314,6 +313,18 @@ class Individual:
                 else:
                     inf.Timer += 1
 
+    def seed_HPV(self):
+        if 17 < self.age < 30:
+            rand = random.random()
+            if rand < 0.05:
+                self.acquire_infection(HPVoHRInfection)
+            elif rand < 0.15:
+                self.acquire_infection(HPV16Infection)
+            elif rand < 0.22:
+                self.acquire_infection(HPV18Infection)
+            elif rand < 0.3:
+                self.acquire_infection(HPVLRInfection)
+
 
 class Woman(Individual):
     def __init__(
@@ -437,106 +448,3 @@ class Man(Individual):
             self.month_age += 1
             if self.month_age % 12 == 0:
                 self.age += 1
-
-
-def main():
-    if len(sys.argv) > 1:
-        filename = sys.argv[1]
-    else:
-        filename = "example.ini"
-
-    Model_Data = Data(filename)
-
-    # Create dictionary of men, women and partnerships
-    Women = dict()
-    Men = dict()
-    Partnerships = dict()
-
-    # Initialize men and women
-    NumMen = []
-    NumWomen = []
-    ModelAges = Model_Data.INITIAL_POPULATION.shape[0]
-
-    for k in range(ModelAges):
-        NumMen.append(int(Model_Data.INITIAL_POPULATION.iloc[k]["MALE"] * Model_Data.COHORT_SIZE))
-        NumWomen.append(int(Model_Data.INITIAL_POPULATION.iloc[k]["FEMALE"] * Model_Data.COHORT_SIZE))
-
-    age = 1
-    for x in NumWomen:
-        for _ in range(x):
-            woman_id = uuid.uuid1()
-            Women[woman_id] = Woman(age, woman_id, Model_Data, Men, Partnerships)
-            # Seed HPV
-            if 17 < age < 30:
-                rand = random.random()
-                if rand < 0.05:
-                    Women[woman_id].acquire_infection(HPVoHRInfection)
-                elif rand < 0.15:
-                    Women[woman_id].acquire_infection(HPV16Infection)
-                elif rand < 0.22:
-                    Women[woman_id].acquire_infection(HPV18Infection)
-                elif rand < 0.3:
-                    Women[woman_id].acquire_infection(HPVLRInfection)
-        age += 1
-
-    age = 1
-    for x in NumMen:
-        for _ in range(x):
-            man_id = uuid.uuid1()
-            Men[man_id] = Man(age, man_id, Model_Data)
-            # Seed HPV
-            if 17 < age < 30:
-                rand = random.random()
-                if rand < 0.05:
-                    Men[man_id].acquire_infection(HPVoHRInfection)
-                elif rand < 0.15:
-                    Men[man_id].acquire_infection(HPV16Infection)
-                elif rand < 0.22:
-                    Men[man_id].acquire_infection(HPV18Infection)
-                elif rand < 0.3:
-                    Men[man_id].acquire_infection(HPVLRInfection)
-        age += 1
-
-    # Run simulation
-
-    for _ in range(Model_Data.SIM_MONTHS):
-
-        for _, w in Women.items():
-            w.natural_history()
-
-        for _, m in Men.items():
-            m.natural_history()
-
-        for _, w in Women.items():
-            w.run_partnerships()
-
-        for _, p in Partnerships.items():
-            p.check_relationships()
-
-        # Check who died in cycle, remove from dictionary, replace with new birth
-
-        DeadWomen = []
-
-        for j, w in Women.items():
-            if not w.alive:
-                DeadWomen.append(j)
-
-        for w in DeadWomen:
-            del Women[w]
-            woman_id = uuid.uuid1()
-            Women[woman_id] = Woman(0, woman_id, Model_Data, Men, Partnerships)
-
-        DeadMen = []
-
-        for j, m in Men.items():
-            if not m.alive:
-                DeadMen.append(j)
-
-        for m in DeadMen:
-            del Men[m]
-            man_id = uuid.uuid1()
-            Men[man_id] = Man(0, man_id, Model_Data)
-
-
-if __name__ == "__main__":
-    main()
