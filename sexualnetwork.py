@@ -180,6 +180,7 @@ class Partnership:
         self.partnership_duration = 1
         self.maxdur = 12 * poisson_randomizer(self.average_duration())
         self.sexacts = poisson_randomizer(self.sex_acts())
+        self.active = True
 
     def average_duration(self):
         # Kinda expected that we'd never instantiate this class directly, but instead instantiate the subclasses
@@ -198,19 +199,20 @@ class Partnership:
                 inf.check_serodiscordance(self.male)
 
     def check_relationships(self):
-        if self.female.alive and self.male.alive:
-            self.check_serodiscordance()
-            if self.partnership_duration < self.maxdur:
-                self.partnership_duration += 1
+        if self.active:
+            if self.female.alive and self.male.alive:
+                self.check_serodiscordance()
+                if self.partnership_duration < self.maxdur:
+                    self.partnership_duration += 1
+                else:
+                    self.dissolve_relationship()
             else:
                 self.dissolve_relationship()
-        else:
-            self.dissolve_relationship()
 
     def dissolve_relationship(self):
         self.female.numpartners -= 1
         self.male.numpartners -= 1
-        del self
+        self.active = False
 
 
 class Marriage(Partnership):
@@ -280,32 +282,20 @@ class InstantaneousRelationship(Partnership):
 class Individual:
 
     def __init__(self,
-                 gender,
                  age,
                  identifier,
-                 data,
-                 men,
-                 partnerships):
+                 data):
         self.single = True
         self.numpartners = 0
         self.alive = True
         self.Infections = dict()
         self.age = age
         self.month_age = age * 12
-        self.gender = gender
         self.id = identifier
         self.data = data
-        if self.gender == Gender.MALE:
-            self.mortality = data.BACKGROUND_MORTALITY_MALE
-            self.concurrency = data.CONCURRENCY_MALE
-        else:
-            self.mortality = data.BACKGROUND_MORTALITY_FEMALE
-            self.concurrency = data.CONCURRENCY_FEMALE
         self.ageofpartner = data.AGE_OF_PARTNER
         self.sexualdebutage = data.SEXUAL_DEBUT_AGE
         self.partnershipformation = data.PARTNERSHIP_FORMATION
-        self.list_of_men = men
-        self.list_of_partnerships = partnerships
 
     def acquire_infection(self, hpvtype):
         infection_id = uuid.uuid1()
@@ -324,6 +314,22 @@ class Individual:
                 else:
                     inf.Timer += 1
 
+
+class Woman(Individual):
+    def __init__(
+            self,
+            age,
+            identifier,
+            data,
+            partnerships,
+            men):
+        super(Woman, self).__init__(age, identifier, data)
+        self.gender = Gender.FEMALE
+        self.list_of_men = men
+        self.mortality = data.BACKGROUND_MORTALITY_FEMALE
+        self.concurrency = data.CONCURRENCY_FEMALE
+        self.list_of_partnerships = partnerships
+
     def natural_history(self):
         rand = random.random()
         if rand < self.mortality.iloc[self.age]["mASR"]:
@@ -340,36 +346,45 @@ class Individual:
         self.numpartners += 1
         man.numpartners += 1
 
+    def check_eligibility(self, man):
+        if man.alive:
+            alreadypartner = False
+            for _, val in self.list_of_partnerships.items():
+                if val.female_id == self.id and val.male_id == man.id:
+                    if val.active:
+                        alreadypartner = True
+            if not alreadypartner:
+                if (self.ageofpartner.iloc[self.age]["mean"] + self.ageofpartner.iloc[self.age]["SD"]) >= man.age >= (
+                        self.ageofpartner.iloc[self.age]["mean"] - self.ageofpartner.iloc[self.age]["SD"]):
+                    return True
+                else:
+                    return False
+            else:
+                return False
+
     def create_partnership(self):
         keys = list(self.list_of_men.keys())  # shuffle men
         random.shuffle(keys)
         for m in keys:
-            if self.list_of_men[m].alive:
-                alreadypartner = False
-                for _, val in self.list_of_partnerships.items():
-                    if val.female_id == self.id and val.male_id == self.list_of_men[m].id:
-                        alreadypartner = True
-                if not alreadypartner:
-                    if (self.ageofpartner.iloc[self.age]["mean"] + self.ageofpartner.iloc[self.age]["SD"]) >= self.list_of_men[m].age >= (
-                            self.ageofpartner.iloc[self.age]["mean"] - self.ageofpartner.iloc[self.age]["SD"]):
-                        if self.list_of_men[m].single:
-                            relationship_type = self.assign_partnership_type(True)
-                            self.add_partner(self.list_of_men[m], relationship_type)
-                            self.list_of_men[m].single = False
-                            self.single = False
-                            self.numpartners += 1
-                            self.list_of_men[m].numpartners += 1
-                            break
-                        else:
-                            rand = random.random()
-                            if rand < m.concurrency:
-                                relationship_type = self.assign_partnership_type(False)
-                                self.add_partner(m, relationship_type)
-                                self.list_of_men[m].single = False
-                                self.numpartners += 1
-                                self.single = False
-                                self.list_of_men[m].numpartners += 1
-                                break
+            if self.check_eligibility(self.list_of_men[m]):
+                if self.list_of_men[m].single:
+                    relationship_type = self.assign_partnership_type(True)
+                    self.add_partner(self.list_of_men[m], relationship_type)
+                    self.list_of_men[m].single = False
+                    self.single = False
+                    self.numpartners += 1
+                    self.list_of_men[m].numpartners += 1
+                    break
+                else:
+                    rand = random.random()
+                    if rand < self.list_of_men[m].concurrency:
+                        relationship_type = self.assign_partnership_type(False)
+                        self.add_partner(self.list_of_men[m], relationship_type)
+                        self.list_of_men[m].single = False
+                        self.numpartners += 1
+                        self.single = False
+                        self.list_of_men[m].numpartners += 1
+                        break
 
     def assign_partnership_type(self, single):
         if single:
@@ -402,6 +417,28 @@ class Individual:
                         self.create_partnership()
 
 
+class Man(Individual):
+    def __init__(
+            self,
+            age,
+            identifier,
+            data):
+        super(Man, self).__init__(age, identifier, data)
+        self.gender = Gender.MALE
+        self.mortality = data.BACKGROUND_MORTALITY_MALE
+        self.concurrency = data.CONCURRENCY_MALE
+
+    def natural_history(self):
+        rand = random.random()
+        if rand < self.mortality.iloc[self.age]["mASR"]:
+            self.alive = False
+        else:
+            self.infection_natural_history()
+            self.month_age += 1
+            if self.month_age % 12 == 0:
+                self.age += 1
+
+
 def main():
     if len(sys.argv) > 1:
         filename = sys.argv[1]
@@ -428,7 +465,7 @@ def main():
     for x in NumWomen:
         for _ in range(x):
             woman_id = uuid.uuid1()
-            Women[woman_id] = Individual(Gender.FEMALE, age, woman_id, Model_Data, Men, Partnerships)
+            Women[woman_id] = Woman(age, woman_id, Model_Data, Men, Partnerships)
             # Seed HPV
             if 17 < age < 30:
                 rand = random.random()
@@ -446,7 +483,7 @@ def main():
     for x in NumMen:
         for _ in range(x):
             man_id = uuid.uuid1()
-            Men[man_id] = Individual(Gender.MALE, age, man_id, Model_Data, Men, Partnerships)
+            Men[man_id] = Man(age, man_id, Model_Data)
             # Seed HPV
             if 17 < age < 30:
                 rand = random.random()
@@ -487,7 +524,7 @@ def main():
         for w in DeadWomen:
             del Women[w]
             woman_id = uuid.uuid1()
-            Women[woman_id] = Individual(Gender.FEMALE, 0, woman_id, Model_Data, Men, Partnerships)
+            Women[woman_id] = Woman(0, woman_id, Model_Data, Men, Partnerships)
 
         DeadMen = []
 
@@ -498,7 +535,7 @@ def main():
         for m in DeadMen:
             del Men[m]
             man_id = uuid.uuid1()
-            Men[man_id] = Individual(Gender.MALE, 0, man_id, Model_Data, Men, Partnerships)
+            Men[man_id] = Man(0, man_id, Model_Data)
 
 
 if __name__ == "__main__":
