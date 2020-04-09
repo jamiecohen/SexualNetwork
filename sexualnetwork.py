@@ -2,9 +2,10 @@ import uuid
 from enum import Enum
 import random
 import configparser
+import time
 import numpy as np
 import pandas as pd
-import time
+
 
 class Gender(Enum):
     MALE = 1
@@ -56,7 +57,8 @@ class Data:
     def calc_partnerships(self, partnership):
         pass
 
-    def write_infections(self, data):
+    @staticmethod
+    def write_infections(data):
         np.savetxt('test.txt', data)
 
 
@@ -71,7 +73,7 @@ class Infection:
 
     def check_serodiscordance(self, person, sexacts):
         discordant = True
-        infection_keys = [key for key, value in person.Infections.items() if value.Type == self.Type and value.active]
+        infection_keys = [key for key, value in person.Infections.items() if value.Type == self.Type]
         if len(infection_keys) > 0:
             discordant = False
 
@@ -89,7 +91,6 @@ class HPV16Infection(Infection):
         self.Type = HPVType.HPV16
         self.HPVClearance = data.HPV_CLEARANCE["HPV16"]
         self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
-        self.active = True
         self.InfectionAge = age
 
     def get_clearance(self):
@@ -110,7 +111,6 @@ class HPV18Infection(Infection):
         self.Type = HPVType.HPV16
         self.HPVClearance = data.HPV_CLEARANCE["HPV18"]
         self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
-        self.active = True
         self.InfectionAge = age
 
     def get_clearance(self):
@@ -131,7 +131,6 @@ class HPVoHRInfection(Infection):
         self.Type = HPVType.HPV16
         self.HPVClearance = data.HPV_CLEARANCE["HPVoHR"]
         self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
-        self.active = True
         self.InfectionAge = age
 
     def get_clearance(self):
@@ -152,7 +151,6 @@ class HPVLRInfection(Infection):
         self.Type = HPVType.HPV16
         self.HPVClearance = data.HPV_CLEARANCE["HPVLR"]
         self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
-        self.active = True
         self.InfectionAge = age
 
     def get_clearance(self):
@@ -203,25 +201,24 @@ class Partnership:
 
     def check_serodiscordance(self):
         for _, inf in self.male.Infections.items():
-            if inf.active:
-                inf.check_serodiscordance(self.female, self.sexacts)
+            inf.check_serodiscordance(self.female, self.sexacts)
         for _, inf in self.female.Infections.items():
-            if inf.active:
-                inf.check_serodiscordance(self.male, self.sexacts)
+            inf.check_serodiscordance(self.male, self.sexacts)
 
     def check_relationships(self):
-        if self.active:
-            if self.female.alive and self.male.alive:
-                self.check_serodiscordance()
-                if self.partnership_duration < self.maxdur:
-                    self.partnership_duration += 1
-                else:
-                    self.dissolve_relationship()
+        if self.female.alive and self.male.alive:
+            self.check_serodiscordance()
+            if self.partnership_duration < self.maxdur:
+                self.partnership_duration += 1
             else:
                 self.dissolve_relationship()
+        else:
+            self.dissolve_relationship()
 
     def dissolve_relationship(self):
         self.female.numpartners -= 1
+        self.female.partnershipid.remove(self.partnership_id)
+        self.male.partnershipid.remove(self.partnership_id)
         self.male.numpartners -= 1
         self.active = False
 
@@ -302,6 +299,7 @@ class Individual:
         self.partnershipid = []
         self.alive = True
         self.Infections = dict()
+        self.ClearedInfections = dict()
         self.age = age
         self.month_age = age * 12
         self.id = identifier
@@ -312,25 +310,29 @@ class Individual:
         self.sexualdebutage = data.SEXUAL_DEBUT_AGE
         self.partnershipformation = data.PARTNERSHIP_FORMATION
 
-    def acquire_infection(self, hpvtype):
+    def acquire_infection(self, infectiontype):
         infection_id = uuid.uuid1()
-        self.Infections[infection_id] = hpvtype(self.data, self.age)
+        self.Infections[infection_id] = infectiontype(self.data, self.age)
         self.data.calc_infection_incidence(self.Infections[infection_id], self.simyear)
 
     def clear_infection(self, infection_id):
-        self.Infections[infection_id].active = False
+        self.ClearedInfections[infection_id] = self.Infections[infection_id]
+        del self.Infections[infection_id]
 
     def infection_natural_history(self):
+        infections_to_clear = []
         for infid, inf in self.Infections.items():
-            if inf.active:
-                prob_clear = inf.get_clearance()
-                rand = random.random()
-                if rand < prob_clear:
-                    self.clear_infection(infid)
-                else:
-                    inf.Timer += 1
+            prob_clear = inf.get_clearance()
+            rand = random.random()
+            if rand < prob_clear:
+                infections_to_clear.append(infid)
+            else:
+                inf.Timer += 1
 
-    def seed_HPV(self):
+        for inf in infections_to_clear:
+            self.clear_infection(inf)
+
+    def seed_infection(self):
         if 17 < self.age < 30:
             rand = random.random()
             if rand < 0.05:
@@ -385,13 +387,15 @@ class Woman(Individual):
                     return False
             else:
                 return False
+        else:
+            return False
 
     def create_partnership(self, men, partnerships):
         keys = list(men.keys())  # shuffle men
         random.shuffle(keys)
         for m in keys:
             if self.check_eligibility(men[m], partnerships):
-                if men[m].single:
+                if men[m].numpartners == 0:
                     relationship_type = self.assign_partnership_type(True)
                     self.add_partner(men[m], relationship_type, partnerships)
                     men[m].single = False
@@ -429,16 +433,15 @@ class Woman(Individual):
                 return InstantaneousRelationship
 
     def run_partnerships(self, men, partnerships):
-        if self.alive:
-            if self.age >= self.sexualdebutage:
-                if self.single:
-                    rand = random.random()
-                    if rand < self.partnershipformation.iloc[self.age]["Female"]:
-                        self.create_partnership(men, partnerships)
-                else:
-                    rand = random.random()
-                    if rand < self.concurrency:
-                        self.create_partnership(men, partnerships)
+        if self.age >= self.sexualdebutage:
+            if self.numpartners == 0:
+                rand = random.random()
+                if rand < self.partnershipformation.iloc[self.age]["Female"]:
+                    self.create_partnership(men, partnerships)
+            else:
+                rand = random.random()
+                if rand < self.concurrency:
+                    self.create_partnership(men, partnerships)
 
 
 class Man(Individual):

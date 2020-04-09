@@ -14,9 +14,13 @@ def main():
     # Create dictionary of men, women and partnerships
     Women = dict()
     Men = dict()
+    DeadWomen = dict()
+    DeadMen = dict()
     Partnerships = dict()
+    InactivePartnerships = dict()
 
     # Initialize men and women
+
     NumMen = []
     NumWomen = []
     ModelAges = Model_Data.INITIAL_POPULATION.shape[0]
@@ -30,7 +34,7 @@ def main():
         for _ in range(x):
             woman_id = uuid.uuid1()
             Women[woman_id] = Woman(age, woman_id, Model_Data, 0)
-            Women[woman_id].seed_HPV()  # Seed HPV
+            Women[woman_id].seed_infection()  # Seed HPV
         age += 1
 
     age = 1
@@ -38,10 +42,10 @@ def main():
         for _ in range(x):
             man_id = uuid.uuid1()
             Men[man_id] = Man(age, man_id, Model_Data, 0)
-            Men[man_id].seed_HPV()  # Seed HPV
+            Men[man_id].seed_infection()  # Seed HPV
         age += 1
 
-    # Run simulation to burn in partnerships
+    # Run simulation
 
     t = Timer()
     t.start()
@@ -49,21 +53,24 @@ def main():
     for i in range(Model_Data.SIM_MONTHS):
 
         for _, w in Women.items():
-            if w.alive:
-                w.natural_history()
-
-        for _, m in Men.items():
-            if m.alive:
-                m.natural_history()
-
-        for _, w in Women.items():
+            w.natural_history()
             if w.alive:
                 w.run_partnerships(Men, Partnerships)
+
+        for _, m in Men.items():
+            m.natural_history()
 
         for _, p in Partnerships.items():
             p.check_relationships()
 
+        partnerships_to_delete = [keys for keys in Partnerships if not Partnerships[keys].active]
+
+        for key in partnerships_to_delete:
+            InactivePartnerships[key] = Partnerships[key]
+            del Partnerships[key]
+
         dead_women = 0
+        women_to_delete = []
 
         for j, w in Women.items():
             if w.alive:
@@ -74,13 +81,17 @@ def main():
                 if w.simmonth % 12 == 0:
                     w.simyear += 1
             else:
+                DeadWomen[j] = w
+                women_to_delete.append(j)
                 dead_women += 1
 
-        for _ in range(dead_women):
+        for key in women_to_delete:
+            del Women[key]
             woman_id = uuid.uuid1()
             Women[woman_id] = Woman(0, woman_id, Model_Data, i)
 
         dead_men = 0
+        men_to_delete = []
 
         for j, m in Men.items():
             if m.alive:
@@ -92,8 +103,11 @@ def main():
                     m.simyear += 1
             else:
                 dead_men += 1
+                DeadMen[j] = m
+                men_to_delete.append(j)
 
-        for _ in range(dead_men):
+        for key in men_to_delete:
+            del Men[key]
             man_id = uuid.uuid1()
             Men[man_id] = Man(0, man_id, Model_Data, i)
 
