@@ -1,6 +1,6 @@
 import sys
 import uuid
-from sexualnetwork import Data, Woman, Man
+from sexualnetwork import Data, Woman, Man, Timer
 
 
 def main():
@@ -29,7 +29,7 @@ def main():
     for x in NumWomen:
         for _ in range(x):
             woman_id = uuid.uuid1()
-            Women[woman_id] = Woman(age, woman_id, Model_Data, Men, Partnerships)
+            Women[woman_id] = Woman(age, woman_id, Model_Data, 0)
             Women[woman_id].seed_HPV()  # Seed HPV
         age += 1
 
@@ -37,13 +37,16 @@ def main():
     for x in NumMen:
         for _ in range(x):
             man_id = uuid.uuid1()
-            Men[man_id] = Man(age, man_id, Model_Data)
+            Men[man_id] = Man(age, man_id, Model_Data, 0)
             Men[man_id].seed_HPV()  # Seed HPV
         age += 1
 
-    # Run simulation
+    # Run simulation to burn in partnerships
 
-    for _ in range(Model_Data.SIM_MONTHS):
+    t = Timer()
+    t.start()
+
+    for i in range(Model_Data.SIM_MONTHS):
 
         for _, w in Women.items():
             if w.alive:
@@ -55,32 +58,47 @@ def main():
 
         for _, w in Women.items():
             if w.alive:
-                w.run_partnerships()
+                w.run_partnerships(Men, Partnerships)
 
         for _, p in Partnerships.items():
             p.check_relationships()
 
-        # Check who died in cycle, replace with new birth
-
         dead_women = 0
 
         for j, w in Women.items():
-            if not w.alive:
+            if w.alive:
+                w.month_age += 1
+                w.simmonth += 1
+                if w.month_age % 12 == 0:
+                    w.age += 1
+                if w.simmonth % 12 == 0:
+                    w.simyear += 1
+            else:
                 dead_women += 1
 
         for _ in range(dead_women):
             woman_id = uuid.uuid1()
-            Women[woman_id] = Woman(0, woman_id, Model_Data, Men, Partnerships)
+            Women[woman_id] = Woman(0, woman_id, Model_Data, i)
 
         dead_men = 0
 
         for j, m in Men.items():
-            if not m.alive:
+            if m.alive:
+                m.month_age += 1
+                m.simmonth += 1
+                if m.month_age % 12 == 0:
+                    m.age += 1
+                if m.simmonth % 12 == 0:
+                    m.simyear += 1
+            else:
                 dead_men += 1
 
         for _ in range(dead_men):
             man_id = uuid.uuid1()
-            Men[man_id] = Man(0, man_id, Model_Data)
+            Men[man_id] = Man(0, man_id, Model_Data, i)
+
+    t.stop()
+    Model_Data.write_infections(Model_Data.incidentinfections)
 
 
 if __name__ == "__main__":
