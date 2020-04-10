@@ -6,6 +6,8 @@ import time
 import numpy as np
 import pandas as pd
 
+np.seterr(divide='ignore', invalid='ignore')
+
 
 class Gender(Enum):
     MALE = 1
@@ -50,16 +52,29 @@ class Data:
         self.INITIAL_POPULATION = pd.read_csv(run001["INITIAL_POPULATION_FILE"])
         self.HPV_CLEARANCE = pd.read_csv(run001["HPV_CLEARANCE_FILE"])
         self.incidentinfections = [[0] * self.SIM_YEARS for _ in range(self.INITIAL_POPULATION.shape[0])]
+        self.prevalentinfections = [[0] * self.SIM_YEARS for _ in range(self.INITIAL_POPULATION.shape[0])]
+        self.noinfection = [[0] * self.SIM_YEARS for _ in range(self.INITIAL_POPULATION.shape[0])]
+        self.totalalive = [[0] * self.SIM_YEARS for _ in range(self.INITIAL_POPULATION.shape[0])]
 
-    def calc_infection_incidence(self, infection, simyear):
-        self.incidentinfections[infection.InfectionAge][simyear] += 1
+    def count_incident_infections(self, infection):
+        self.incidentinfections[infection.InfectionAge][Individual.year] += 1
 
-    def calc_partnerships(self, partnership):
-        pass
+    def count_infection_denom(self, age):
+        self.noinfection[age][Individual.year] += 1
 
-    @staticmethod
-    def write_infections(data):
-        np.savetxt('test.txt', data)
+    def count_prevalent_infections(self, age):
+        self.prevalentinfections[age][Individual.year] += 1
+
+    def count_total_alive(self, age):
+        self.totalalive[age][Individual.year] += 1
+
+    def write_infections(self):
+        incidence = np.divide(self.incidentinfections, self.noinfection)
+        prevalence = np.divide(self.prevalentinfections, self.totalalive)
+        np.savetxt('incidence.csv', incidence, fmt='%f')
+        np.savetxt('prevalence.csv', prevalence, fmt='%f')
+
+    # TODO: make this more generalizable. Load data for a section.
 
 
 class Infection:
@@ -289,11 +304,13 @@ class InstantaneousRelationship(Partnership):
 
 class Individual:
 
+    month = 0
+    year = 0
+
     def __init__(self,
                  age,
                  identifier,
-                 data,
-                 month):
+                 data):
         self.single = True
         self.numpartners = 0
         self.partnershipid = []
@@ -304,8 +321,6 @@ class Individual:
         self.month_age = age * 12
         self.id = identifier
         self.data = data
-        self.simmonth = month
-        self.simyear = month * 12
         self.ageofpartner = data.AGE_OF_PARTNER
         self.sexualdebutage = data.SEXUAL_DEBUT_AGE
         self.partnershipformation = data.PARTNERSHIP_FORMATION
@@ -313,7 +328,7 @@ class Individual:
     def acquire_infection(self, infectiontype):
         infection_id = uuid.uuid1()
         self.Infections[infection_id] = infectiontype(self.data, self.age)
-        self.data.calc_infection_incidence(self.Infections[infection_id], self.simyear)
+        self.data.count_incident_infections(self.Infections[infection_id])
 
     def clear_infection(self, infection_id):
         self.ClearedInfections[infection_id] = self.Infections[infection_id]
@@ -350,9 +365,8 @@ class Woman(Individual):
             self,
             age,
             identifier,
-            data,
-            month):
-        super(Woman, self).__init__(age, identifier, data, month)
+            data):
+        super(Woman, self).__init__(age, identifier, data)
         self.gender = Gender.FEMALE
         self.mortality = data.BACKGROUND_MORTALITY_FEMALE
         self.concurrency = data.CONCURRENCY_FEMALE
@@ -362,6 +376,11 @@ class Woman(Individual):
         if rand < self.mortality.iloc[self.age]["mASR"]:
             self.alive = False
         else:
+            self.data.count_total_alive(self.age)
+            if len(self.Infections) == 0:
+                self.data.count_infection_denom(self.age)
+            else:
+                self.data.count_prevalent_infections(self.age)
             self.infection_natural_history()
 
     def add_partner(self, man, relationshiptype, partnerships):
@@ -449,9 +468,8 @@ class Man(Individual):
             self,
             age,
             identifier,
-            data,
-            month):
-        super(Man, self).__init__(age, identifier, data, month)
+            data):
+        super(Man, self).__init__(age, identifier, data)
         self.gender = Gender.MALE
         self.mortality = data.BACKGROUND_MORTALITY_MALE
         self.concurrency = data.CONCURRENCY_MALE
@@ -461,6 +479,11 @@ class Man(Individual):
         if rand < self.mortality.iloc[self.age]["mASR"]:
             self.alive = False
         else:
+            self.data.count_total_alive(self.age)
+            if len(self.Infections) == 0:
+                self.data.count_infection_denom(self.age)
+            else:
+                self.data.count_prevalent_infections(self.age)
             self.infection_natural_history()
 
 

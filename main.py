@@ -1,6 +1,6 @@
 import sys
 import uuid
-from sexualnetwork import Data, Woman, Man, Timer
+from sexualnetwork import Data, Woman, Man, Individual, Timer
 
 
 def main():
@@ -33,7 +33,7 @@ def main():
     for x in NumWomen:
         for _ in range(x):
             woman_id = uuid.uuid1()
-            Women[woman_id] = Woman(age, woman_id, Model_Data, 0)
+            Women[woman_id] = Woman(age, woman_id, Model_Data)
             Women[woman_id].seed_infection()  # Seed HPV
         age += 1
 
@@ -41,7 +41,7 @@ def main():
     for x in NumMen:
         for _ in range(x):
             man_id = uuid.uuid1()
-            Men[man_id] = Man(age, man_id, Model_Data, 0)
+            Men[man_id] = Man(age, man_id, Model_Data)
             Men[man_id].seed_infection()  # Seed HPV
         age += 1
 
@@ -50,7 +50,7 @@ def main():
     t = Timer()
     t.start()
 
-    for i in range(Model_Data.SIM_MONTHS):
+    for month in range(Model_Data.SIM_MONTHS):
 
         for _, w in Women.items():
             w.natural_history()
@@ -75,11 +75,8 @@ def main():
         for j, w in Women.items():
             if w.alive:
                 w.month_age += 1
-                w.simmonth += 1
                 if w.month_age % 12 == 0:
                     w.age += 1
-                if w.simmonth % 12 == 0:
-                    w.simyear += 1
             else:
                 DeadWomen[j] = w
                 women_to_delete.append(j)
@@ -88,7 +85,7 @@ def main():
         for key in women_to_delete:
             del Women[key]
             woman_id = uuid.uuid1()
-            Women[woman_id] = Woman(0, woman_id, Model_Data, i)
+            Women[woman_id] = Woman(0, woman_id, Model_Data)
 
         dead_men = 0
         men_to_delete = []
@@ -96,11 +93,8 @@ def main():
         for j, m in Men.items():
             if m.alive:
                 m.month_age += 1
-                m.simmonth += 1
                 if m.month_age % 12 == 0:
                     m.age += 1
-                if m.simmonth % 12 == 0:
-                    m.simyear += 1
             else:
                 dead_men += 1
                 DeadMen[j] = m
@@ -109,10 +103,14 @@ def main():
         for key in men_to_delete:
             del Men[key]
             man_id = uuid.uuid1()
-            Men[man_id] = Man(0, man_id, Model_Data, i)
+            Men[man_id] = Man(0, man_id, Model_Data)
+
+        Individual.month += 1
+        if Individual.month % 12 == 0:
+            Individual.year += 1
 
     t.stop()
-    Model_Data.write_infections(Model_Data.incidentinfections)
+    Model_Data.write_infections()
 
 
 if __name__ == "__main__":
