@@ -373,6 +373,7 @@ class Woman(Individual):
 
     def natural_history(self):
         rand = random.random()
+        # consider adding get_mortality()
         if rand < self.mortality.iloc[self.age]["mASR"]:
             self.alive = False
         else:
@@ -398,39 +399,40 @@ class Woman(Individual):
                 if partnerships[key].female_id == self.id and partnerships[key].male_id == man.id:
                     if partnerships[key].active:
                         alreadypartner = True
-            if not alreadypartner:
-                if (self.ageofpartner.iloc[self.age]["mean"] + self.ageofpartner.iloc[self.age]["SD"]) >= man.age >= (
-                        self.ageofpartner.iloc[self.age]["mean"] - self.ageofpartner.iloc[self.age]["SD"]):
-                    return True
-                else:
-                    return False
-            else:
-                return False
+            return not alreadypartner
         else:
             return False
 
-    def create_partnership(self, men, partnerships):
-        keys = list(men.keys())  # shuffle men
+    def get_age_of_partner(self):
+        age = np.random.poisson(self.ageofpartner.iloc[self.age]["mean"], None)
+        while age > 91:
+            age = np.random.poisson(self.ageofpartner.iloc[self.age]["mean"], None)
+        return age
+
+    def create_partnership(self, lookup_table, partnerships):
+        ageofpartner = self.get_age_of_partner()
+        keys = list(lookup_table[ageofpartner].keys())
         random.shuffle(keys)
+        # lookup by eligibility
         for m in keys:
-            if self.check_eligibility(men[m], partnerships):
-                if men[m].numpartners == 0:
+            if self.check_eligibility(lookup_table[ageofpartner][m], partnerships):
+                if lookup_table[ageofpartner][m].numpartners == 0:
                     relationship_type = self.assign_partnership_type(True)
-                    self.add_partner(men[m], relationship_type, partnerships)
-                    men[m].single = False
+                    self.add_partner(lookup_table[ageofpartner][m], relationship_type, partnerships)
+                    lookup_table[ageofpartner][m].single = False
                     self.single = False
                     self.numpartners += 1
-                    men[m].numpartners += 1
+                    lookup_table[ageofpartner][m].numpartners += 1
                     break
                 else:
                     rand = random.random()
-                    if rand < men[m].concurrency:
+                    if rand < lookup_table[ageofpartner][m].concurrency:
                         relationship_type = self.assign_partnership_type(False)
-                        self.add_partner(men[m], relationship_type, partnerships)
-                        men[m].single = False
+                        self.add_partner(lookup_table[ageofpartner][m], relationship_type, partnerships)
+                        lookup_table[ageofpartner][m].single = False
                         self.numpartners += 1
                         self.single = False
-                        men[m].numpartners += 1
+                        lookup_table[ageofpartner][m].numpartners += 1
                         break
 
     def assign_partnership_type(self, single):
@@ -451,16 +453,16 @@ class Woman(Individual):
             else:
                 return InstantaneousRelationship
 
-    def run_partnerships(self, men, partnerships):
+    def run_partnerships(self, lookup_table, partnerships):
         if self.age >= self.sexualdebutage:
             if self.numpartners == 0:
                 rand = random.random()
                 if rand < self.partnershipformation.iloc[self.age]["Female"]:
-                    self.create_partnership(men, partnerships)
+                    self.create_partnership(lookup_table, partnerships)
             else:
                 rand = random.random()
                 if rand < self.concurrency:
-                    self.create_partnership(men, partnerships)
+                    self.create_partnership(lookup_table, partnerships)
 
 
 class Man(Individual):
