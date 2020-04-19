@@ -1,7 +1,6 @@
 import uuid
 from enum import Enum
 import random
-import configparser
 import time
 import numpy as np
 import pandas as pd
@@ -23,34 +22,35 @@ class HPVType(Enum):
 
 class Data:
 
-    def __init__(self, filename):
-        config = configparser.ConfigParser()
-        config.read(filename)
-        run001 = config['run001']
-        self.COHORT_SIZE: int = int(run001["COHORT_SIZE"])
-        self.SIM_YEARS: int = int(run001["SIM_YEARS"])
+    def __init__(self, section):
+        self.COHORT_SIZE: int = int(section["COHORT_SIZE"])
+        self.SIM_YEARS: int = int(section["SIM_YEARS"])
         self.SIM_MONTHS = self.SIM_YEARS * 12
-        self.CYCLE_LENGTH: int = int(run001["CYCLE_LENGTH"])
-        self.CONCURRENCY_MALE: float = float(run001["CONCURRENCY_MALE"])
-        self.CONCURRENCY_FEMALE: float = float(run001["CONCURRENCY_FEMALE"])
-        self.PROB_MARITAL: float = float(run001["PROB_MARITAL"])
-        self.PROB_CASUAL: float = float(run001["PROB_CASUAL"])
-        self.PROB_SHORT_TERM: float = float(run001["PROB_SHORT_TERM"])
-        self.PROB_INSTANTANEOUS: float = float(run001["PROB_INSTANTANEOUS"])
-        self.DUR_MARITAL: int = int(run001["DUR_MARITAL"])
-        self.DUR_CASUAL: int = int(run001["DUR_CASUAL"])
-        self.DUR_SHORT_TERM: int = int(run001["DUR_SHORT_TERM"])
-        self.SEX_PER_MONTH_MARITAL: int = int(run001["SEX_PER_MONTH_MARITAL"])
-        self.SEX_PER_MONTH_CASUAL: int = int(run001["SEX_PER_MONTH_CASUAL"])
-        self.SEX_PER_MONTH_SHORT_TERM: int = int(run001["SEX_PER_MONTH_SHORT_TERM"])
-        self.SEXUAL_DEBUT_AGE: int = int(run001["SEXUAL_DEBUT_AGE"])
-        self.TRANSMISSION_PER_SEX_ACT: float = float(run001["TRANSMISSION_PER_SEX_ACT"])
-        self.BACKGROUND_MORTALITY_FEMALE = pd.read_csv(run001["BACKGROUND_MORTALITY_FEMALE_FILE"])
-        self.BACKGROUND_MORTALITY_MALE = pd.read_csv(run001["BACKGROUND_MORTALITY_MALE_FILE"])
-        self.AGE_OF_PARTNER = pd.read_csv(run001["AGE_OF_PARTNER_FILE"])
-        self.PARTNERSHIP_FORMATION = pd.read_csv(run001["PARTNERSHIP_FORMATION_FILE"])
-        self.INITIAL_POPULATION = pd.read_csv(run001["INITIAL_POPULATION_FILE"])
-        self.HPV_CLEARANCE = pd.read_csv(run001["HPV_CLEARANCE_FILE"])
+        self.CYCLE_LENGTH: int = int(section["CYCLE_LENGTH"])
+        self.CONCURRENCY_MALE: float = float(section["CONCURRENCY_MALE"])
+        self.CONCURRENCY_FEMALE: float = float(section["CONCURRENCY_FEMALE"])
+        self.PROB_MARITAL: float = float(section["PROB_MARITAL"])
+        self.PROB_CASUAL: float = float(section["PROB_CASUAL"])
+        self.PROB_SHORT_TERM: float = float(section["PROB_SHORT_TERM"])
+        self.PROB_INSTANTANEOUS: float = float(section["PROB_INSTANTANEOUS"])
+        self.DUR_MARITAL: int = int(section["DUR_MARITAL"])
+        self.DUR_CASUAL: int = int(section["DUR_CASUAL"])
+        self.DUR_SHORT_TERM: int = int(section["DUR_SHORT_TERM"])
+        self.SEX_PER_MONTH_MARITAL: int = int(section["SEX_PER_MONTH_MARITAL"])
+        self.SEX_PER_MONTH_CASUAL: int = int(section["SEX_PER_MONTH_CASUAL"])
+        self.SEX_PER_MONTH_SHORT_TERM: int = int(section["SEX_PER_MONTH_SHORT_TERM"])
+        self.SEXUAL_DEBUT_AGE: int = int(section["SEXUAL_DEBUT_AGE"])
+        self.TRANSMISSION_PER_SEX_ACT: float = float(section["TRANSMISSION_PER_SEX_ACT"])
+        self.NATURAL_IMMUNITY_HPV16: float = float(section["NATURAL_IMMUNITY_HPV16"])
+        self.NATURAL_IMMUNITY_HPV18: float = float(section["NATURAL_IMMUNITY_HPV18"])
+        self.NATURAL_IMMUNITY_HPVoHR: float = float(section["NATURAL_IMMUNITY_HPVoHR"])
+        self.NATURAL_IMMUNITY_HPVLR: float = float(section["NATURAL_IMMUNITY_HPVLR"])
+        self.BACKGROUND_MORTALITY_FEMALE = pd.read_csv(section["BACKGROUND_MORTALITY_FEMALE_FILE"])
+        self.BACKGROUND_MORTALITY_MALE = pd.read_csv(section["BACKGROUND_MORTALITY_MALE_FILE"])
+        self.AGE_OF_PARTNER = pd.read_csv(section["AGE_OF_PARTNER_FILE"])
+        self.PARTNERSHIP_FORMATION = pd.read_csv(section["PARTNERSHIP_FORMATION_FILE"])
+        self.INITIAL_POPULATION = pd.read_csv(section["INITIAL_POPULATION_FILE"])
+        self.HPV_CLEARANCE = pd.read_csv(section["HPV_CLEARANCE_FILE"])
         self.incidentinfections = [[0] * self.SIM_YEARS for _ in range(self.INITIAL_POPULATION.shape[0])]
         self.prevalentinfections = [[0] * self.SIM_YEARS for _ in range(self.INITIAL_POPULATION.shape[0])]
         self.noinfection = [[0] * self.SIM_YEARS for _ in range(self.INITIAL_POPULATION.shape[0])]
@@ -68,13 +68,11 @@ class Data:
     def count_total_alive(self, age):
         self.totalalive[age][Individual.year] += 1
 
-    def write_infections(self):
+    def write_infections(self, run):
         incidence = np.divide(self.incidentinfections, self.noinfection)
         prevalence = np.divide(self.prevalentinfections, self.totalalive)
-        np.savetxt('incidence.csv', incidence, fmt='%f')
-        np.savetxt('prevalence.csv', prevalence, fmt='%f')
-
-    # TODO: make this more generalizable. Load data for a section.
+        np.savetxt('incidence_' + run + '.csv', incidence, fmt='%f')
+        np.savetxt('prevalence_' + run + '.csv', prevalence, fmt='%f')
 
 
 class Infection:
@@ -82,6 +80,8 @@ class Infection:
     def __init__(self):
         self.Type = None
         self.Timer = 1
+        self.HPVTransmission = None
+        self.NaturalImmunity = None
 
     def get_clearance(self):
         return -1
@@ -98,6 +98,17 @@ class Infection:
     def transmit_infection(self, person, sexacts):
         pass
 
+    def get_hpv_transmission(self, person):
+        infection_keys = [key for key, value in person.ClearedInfections.items() if value.Type == self.Type]
+        if len(infection_keys) > 0:
+            history = True
+        else:
+            history = False
+        if history:
+            return self.HPVTransmission * self.NaturalImmunity
+        else:
+            return self.HPVTransmission
+
 
 class HPV16Infection(Infection):
 
@@ -107,6 +118,7 @@ class HPV16Infection(Infection):
         self.HPVClearance = data.HPV_CLEARANCE["HPV16"]
         self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
         self.InfectionAge = age
+        self.NaturalImmunity = data.NATURAL_IMMUNITY_HPV16
 
     def get_clearance(self):
         return self.HPVClearance.iloc[self.Timer]
@@ -114,7 +126,7 @@ class HPV16Infection(Infection):
     def transmit_infection(self, person, sexacts):
         for _ in range(sexacts):
             rand = random.random()
-            if rand < self.HPVTransmission:
+            if rand < self.get_hpv_transmission(person):
                 person.acquire_infection(HPV16Infection)
                 break
 
@@ -123,10 +135,11 @@ class HPV18Infection(Infection):
 
     def __init__(self, data, age):
         super(HPV18Infection, self).__init__()
-        self.Type = HPVType.HPV16
+        self.Type = HPVType.HPV18
         self.HPVClearance = data.HPV_CLEARANCE["HPV18"]
         self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
         self.InfectionAge = age
+        self.NaturalImmunity = data.NATURAL_IMMUNITY_HPV18
 
     def get_clearance(self):
         return self.HPVClearance.iloc[self.Timer]
@@ -134,7 +147,7 @@ class HPV18Infection(Infection):
     def transmit_infection(self, person, sexacts):
         for _ in range(sexacts):
             rand = random.random()
-            if rand < self.HPVTransmission:
+            if rand < self.get_hpv_transmission(person):
                 person.acquire_infection(HPV18Infection)
                 break
 
@@ -143,10 +156,11 @@ class HPVoHRInfection(Infection):
 
     def __init__(self, data, age):
         super(HPVoHRInfection, self).__init__()
-        self.Type = HPVType.HPV16
+        self.Type = HPVType.HPVoHR
         self.HPVClearance = data.HPV_CLEARANCE["HPVoHR"]
         self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
         self.InfectionAge = age
+        self.NaturalImmunity = data.NATURAL_IMMUNITY_HPVoHR
 
     def get_clearance(self):
         return self.HPVClearance.iloc[self.Timer]
@@ -154,7 +168,7 @@ class HPVoHRInfection(Infection):
     def transmit_infection(self, person, sexacts):
         for _ in range(sexacts):
             rand = random.random()
-            if rand < self.HPVTransmission:
+            if rand < self.get_hpv_transmission(person):
                 person.acquire_infection(HPVoHRInfection)
                 break
 
@@ -163,10 +177,11 @@ class HPVLRInfection(Infection):
 
     def __init__(self, data, age):
         super(HPVLRInfection, self).__init__()
-        self.Type = HPVType.HPV16
+        self.Type = HPVType.HPVLR
         self.HPVClearance = data.HPV_CLEARANCE["HPVLR"]
         self.HPVTransmission = data.TRANSMISSION_PER_SEX_ACT
         self.InfectionAge = age
+        self.NaturalImmunity = data.NATURAL_IMMUNITY_HPVLR
 
     def get_clearance(self):
         return self.HPVClearance.iloc[self.Timer]
@@ -174,7 +189,7 @@ class HPVLRInfection(Infection):
     def transmit_infection(self, person, sexacts):
         for _ in range(sexacts):
             rand = random.random()
-            if rand < self.HPVTransmission:
+            if rand < self.get_hpv_transmission(person):
                 person.acquire_infection(HPVLRInfection)
                 break
 
@@ -303,7 +318,6 @@ class InstantaneousRelationship(Partnership):
 
 
 class Individual:
-
     month = 0
     year = 0
 
@@ -359,6 +373,21 @@ class Individual:
             elif rand < 0.3:
                 self.acquire_infection(HPVLRInfection)
 
+    def natural_history(self):
+        rand = random.random()
+        if rand < self.get_mortality():
+            self.alive = False
+        else:
+            self.data.count_total_alive(self.age)
+            if len(self.Infections) == 0:
+                self.data.count_infection_denom(self.age)
+            else:
+                self.data.count_prevalent_infections(self.age)
+            self.infection_natural_history()
+
+    def get_mortality(self):
+        pass
+
 
 class Woman(Individual):
     def __init__(
@@ -371,18 +400,8 @@ class Woman(Individual):
         self.mortality = data.BACKGROUND_MORTALITY_FEMALE
         self.concurrency = data.CONCURRENCY_FEMALE
 
-    def natural_history(self):
-        rand = random.random()
-        # consider adding get_mortality()
-        if rand < self.mortality.iloc[self.age]["mASR"]:
-            self.alive = False
-        else:
-            self.data.count_total_alive(self.age)
-            if len(self.Infections) == 0:
-                self.data.count_infection_denom(self.age)
-            else:
-                self.data.count_prevalent_infections(self.age)
-            self.infection_natural_history()
+    def get_mortality(self):
+        return self.mortality.iloc[self.age]["mASR"]
 
     def add_partner(self, man, relationshiptype, partnerships):
         partnership_id = uuid.uuid1()
@@ -405,7 +424,7 @@ class Woman(Individual):
 
     def get_age_of_partner(self):
         age = np.random.poisson(self.ageofpartner.iloc[self.age]["mean"], None)
-        while age > 91:
+        while age > 75:
             age = np.random.poisson(self.ageofpartner.iloc[self.age]["mean"], None)
         return age
 
@@ -454,7 +473,7 @@ class Woman(Individual):
                 return InstantaneousRelationship
 
     def run_partnerships(self, lookup_table, partnerships):
-        if self.age >= self.sexualdebutage:
+        if self.sexualdebutage <= self.age <= 74:
             if self.numpartners == 0:
                 rand = random.random()
                 if rand < self.partnershipformation.iloc[self.age]["Female"]:
@@ -476,17 +495,8 @@ class Man(Individual):
         self.mortality = data.BACKGROUND_MORTALITY_MALE
         self.concurrency = data.CONCURRENCY_MALE
 
-    def natural_history(self):
-        rand = random.random()
-        if rand < self.mortality.iloc[self.age]["mASR"]:
-            self.alive = False
-        else:
-            self.data.count_total_alive(self.age)
-            if len(self.Infections) == 0:
-                self.data.count_infection_denom(self.age)
-            else:
-                self.data.count_prevalent_infections(self.age)
-            self.infection_natural_history()
+    def get_mortality(self):
+        return self.mortality.iloc[self.age]["mASR"]
 
 
 class TimerError(Exception):
